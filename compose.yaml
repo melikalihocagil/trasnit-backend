@@ -1,0 +1,9 @@
+services:
+  osrm:
+    image: ghcr.io/project-osrm/osrm-backend:latest
+    container_name: osrm-backend
+    ports:
+      - "5000:5000"
+    volumes:
+      - C:/Users/Melik/Documents/KentKart/osrm-data:/data
+    command: osrm-routed --algorithm mld /data/erzurum.osrm

@@ -1,0 +1,47 @@
+server:
+  port: 8080
+  management-port: 8081
+
+spring:
+  application:
+    name: transit
+  datasource:
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/transit}
+    username: ${SPRING_DATASOURCE_USERNAME:postgres}
+    password: ${SPRING_DATASOURCE_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    database: postgresql
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+
+  docker:
+    compose:
+      enabled: true
+      lifecycle-management: start-only
+      skip:
+        in-tests: true
+
+transit:
+  city: "Erzurum"
+  region-code: "038"
+
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+
+osrm:
+  base-url: ${OSRM_BASE_URL:http://localhost:5000}
+  timeout-ms: 3000
+
+logging:
+  level:
+    com.demo.transit: DEBUG
+
