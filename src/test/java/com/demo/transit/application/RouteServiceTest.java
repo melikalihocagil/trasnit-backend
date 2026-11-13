@@ -16,6 +16,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Captor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -28,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -407,6 +410,77 @@ class RouteServiceTest {
             // Then
             assertThat(result).isEqualTo(affectedRoutes);
             verify(routeRepository).findAffectedRoutes(USER_ID);
+        }
+    }
+
+    @Nested
+    @DisplayName("Hat Bilgisi Taslağı (saveAllDraftRouteInfos) Testleri")
+    class RouteInfoDraftTests {
+
+        @Captor
+        private ArgumentCaptor<List<Route>> routesCaptor;
+
+        @Test
+        @DisplayName("ID'si boş gelen yeni hatlara UUID atanmalı, diğer hatlar aynen kaydedilmelidir")
+        void shouldGenerateIdForNewRoutes() {
+            // Given
+            Route existing = new Route("R1", "A1", "1A", "Atatürk - Çarşı", 3, "FF0000", "FFFFFF");
+            Route newRoute = new Route(null, "A1", "5", "Yeni Hat", 3, "0000FF", "FFFFFF");
+
+            // When
+            routeService.saveAllDraftRouteInfos(USER_ID, List.of(existing, newRoute));
+
+            // Then
+            verify(routeRepository).replaceAllDraft(eq(USER_ID), routesCaptor.capture());
+            List<Route> saved = routesCaptor.getValue();
+            assertThat(saved).hasSize(2);
+            assertThat(saved.get(0)).isEqualTo(existing);
+            assertThat(saved.get(1).routeId()).isNotBlank();
+            assertThat(saved.get(1).routeLongName()).isEqualTo("Yeni Hat");
+        }
+
+        @Test
+        @DisplayName("Null öğeler atlanmalı; null liste taslağı temizlemelidir")
+        void shouldSkipNullItemsAndClearOnNullList() {
+            // Given
+            Route existing = new Route("R1", "A1", "1A", "Atatürk - Çarşı", 3, "FF0000", "FFFFFF");
+            List<Route> withNull = new java.util.ArrayList<>();
+            withNull.add(null);
+            withNull.add(existing);
+
+            // When
+            routeService.saveAllDraftRouteInfos(USER_ID, withNull);
+            routeService.saveAllDraftRouteInfos(USER_ID, null);
+
+            // Then
+            verify(routeRepository).replaceAllDraft(USER_ID, List.of(existing));
+            verify(routeRepository).replaceAllDraft(USER_ID, List.of());
+        }
+
+        @Test
+        @DisplayName("Aynı hat ID'si birden fazla gönderildiğinde IllegalArgumentException fırlatılmalı ve kayıt yapılmamalıdır")
+        void shouldRejectDuplicateRouteIds() {
+            // Given
+            Route r1 = new Route("R1", "A1", "1A", "Atatürk - Çarşı", 3, "FF0000", "FFFFFF");
+            Route r1Again = new Route("R1", "A1", "1A", "Başka Ad", 3, "FF0000", "FFFFFF");
+
+            // When & Then
+            assertThatThrownBy(() -> routeService.saveAllDraftRouteInfos(USER_ID, List.of(r1, r1Again)))
+                    .isInstanceOf(IllegalArgumentException.class)
+                    .hasMessageContaining("R1");
+            verify(routeRepository, never()).replaceAllDraft(any(), any());
+        }
+
+        @Test
+        @DisplayName("Kısa veya uzun adı boş olan hat reddedilmelidir (draft.routes'ta ikisi de NOT NULL)")
+        void shouldRejectRouteWithMissingName() {
+            // Given
+            Route noName = new Route("R1", "A1", "1A", " ", 3, "FF0000", "FFFFFF");
+
+            // When & Then
+            assertThatThrownBy(() -> routeService.saveAllDraftRouteInfos(USER_ID, List.of(noName)))
+                    .isInstanceOf(IllegalArgumentException.class);
+            verify(routeRepository, never()).replaceAllDraft(any(), any());
         }
     }
 }

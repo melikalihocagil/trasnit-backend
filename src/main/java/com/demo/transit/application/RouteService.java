@@ -15,9 +15,13 @@ import com.demo.transit.presentation.dto.RouteResponse;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
 
 @Service
 public class RouteService {
@@ -138,5 +142,46 @@ public class RouteService {
 
     public List<AffectedRoute> getAffectedRoutes(String userId) {
         return routeRepository.findAffectedRoutes(userId);
+    }
+
+    public List<Route> getPublishedRouteInfos(String userId) {
+        return routeRepository.findAll(userId);
+    }
+
+    public List<Route> getDraftRouteInfos(String userId) {
+        return routeRepository.findAllDraft(userId);
+    }
+
+    /**
+     * Kullanıcının hat bilgisi taslağını, doğrudan yayınlanabilecek tam hat listesiyle değiştirir.
+     * Listede olmayan canlı hat silinmiş, ID'si boş gelen hat yeni hat kabul edilir.
+     */
+    @Transactional
+    public void saveAllDraftRouteInfos(String userId, List<Route> routes) {
+        List<Route> normalized = new ArrayList<>();
+        Set<String> routeIds = new HashSet<>();
+        if (routes != null) {
+            for (Route route : routes) {
+                if (route == null) {
+                    continue;
+                }
+                Route withId = isBlank(route.routeId())
+                        ? new Route(UUID.randomUUID().toString(), route.agencyId(), route.routeShortName(),
+                        route.routeLongName(), route.routeType(), route.routeColor(), route.routeTextColor())
+                        : route;
+                if (!routeIds.add(withId.routeId())) {
+                    throw new IllegalArgumentException("Hat ID'si birden fazla kez gönderildi: " + withId.routeId());
+                }
+                if (isBlank(withId.routeShortName()) || isBlank(withId.routeLongName())) {
+                    throw new IllegalArgumentException("Hat kısa ve uzun adı dolu olmalıdır: " + withId.routeId());
+                }
+                normalized.add(withId);
+            }
+        }
+        routeRepository.replaceAllDraft(userId, normalized);
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 }

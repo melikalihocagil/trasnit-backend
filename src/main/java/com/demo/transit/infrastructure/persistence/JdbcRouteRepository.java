@@ -124,6 +124,55 @@ public class JdbcRouteRepository implements RouteRepository {
                 .list();
     }
 
+    @Override
+    public List<Route> findAllDraft(String userId) {
+        return jdbcClient.sql("""
+                SELECT
+                    route_id,
+                    agency_id,
+                    route_short_name,
+                    route_long_name,
+                    route_type,
+                    route_color,
+                    route_text_color
+                FROM draft.routes
+                WHERE user_id = :userId
+                ORDER BY route_id
+                """)
+                .param(PARAM_USER_ID, userId)
+                .query(JdbcRouteRepository::mapRoute)
+                .list();
+    }
+
+    @Override
+    public void replaceAllDraft(String userId, List<Route> routes) {
+        // Taslak, yayınlanacak hat listesinin tam halidir; önceki taslak her durumda silinir
+        jdbcClient.sql("DELETE FROM draft.routes WHERE user_id = :userId")
+                .param(PARAM_USER_ID, userId)
+                .update();
+
+        if (routes == null || routes.isEmpty()) {
+            return;
+        }
+        String sql = """
+                INSERT INTO draft.routes (
+                    user_id, route_id, agency_id, route_short_name, route_long_name,
+                    route_type, route_color, route_text_color, updated_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())
+                """;
+        jdbcTemplate.batchUpdate(sql, routes, routes.size(), (ps, route) -> {
+            ps.setString(1, userId);
+            ps.setString(2, route.routeId());
+            ps.setString(3, route.agencyId());
+            ps.setString(4, route.routeShortName());
+            ps.setString(5, route.routeLongName());
+            ps.setInt(6, route.routeType());
+            ps.setString(7, route.routeColor());
+            ps.setString(8, route.routeTextColor());
+        });
+    }
+
     private static List<String> toStringList(Array sqlArray) throws SQLException {
         if (sqlArray == null) {
             return List.of();

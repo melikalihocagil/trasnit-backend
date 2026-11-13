@@ -11,4 +11,6 @@ public interface RouteRepository {
     Optional<Route> findById(String routeId);
     void replaceAffectedRoutes(String userId, List<AffectedRoute> affectedRoutes);
     List<AffectedRoute> findAffectedRoutes(String userId);
+    List<Route> findAllDraft(String userId);
+    void replaceAllDraft(String userId, List<Route> routes);
 }
