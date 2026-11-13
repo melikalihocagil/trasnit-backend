@@ -1,6 +1,7 @@
 package com.demo.transit.application;
 
 import com.demo.transit.application.model.Route;
+import com.demo.transit.application.model.AffectedRoute;
 import com.demo.transit.application.model.RouteDraftItem;
 import com.demo.transit.application.model.RoutePoints;
 import com.demo.transit.application.model.Stop;
@@ -11,7 +12,6 @@ import com.demo.transit.application.port.StopTimeRepository;
 import com.demo.transit.application.port.TripRepository;
 import com.demo.transit.application.port.ViaRepository;
 import com.demo.transit.presentation.dto.RouteResponse;
-import com.demo.transit.presentation.dto.RouteReviewItem;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -362,37 +362,51 @@ class RouteServiceTest {
     }
 
     @Nested
-    @DisplayName("Hat İnceleme (Route Review) Testleri")
-    class RouteReviewTests {
+    @DisplayName("Durak Değişiminden Etkilenen Hat Testleri")
+    class AffectedRouteTests {
 
         @Test
-        @DisplayName("saveRouteReviews: İnceleme durumlarını RouteRepository'ye delege etmelidir")
-        void shouldDelegateSaveRouteReviews() {
+        @DisplayName("replaceAffectedRoutes: Etkilenen hat listesini RouteRepository'ye delege etmelidir")
+        void shouldDelegateReplaceAffectedRoutes() {
             // Given
-            List<RouteReviewItem> reviews = List.of(
-                    new RouteReviewItem("R1", true),
-                    new RouteReviewItem("R2", false)
+            List<AffectedRoute> affectedRoutes = List.of(
+                    new AffectedRoute("R1", List.of("S1", "S2")),
+                    new AffectedRoute("R2", List.of("S3"))
             );
 
             // When
-            routeService.saveRouteReviews(USER_ID, reviews);
+            routeService.replaceAffectedRoutes(USER_ID, affectedRoutes);
 
             // Then
-            verify(routeRepository).saveRouteReviews(USER_ID, reviews);
+            verify(routeRepository).replaceAffectedRoutes(USER_ID, affectedRoutes);
         }
 
         @Test
-        @DisplayName("getReviewedRouteIds: İncelenen hat ID'lerini RouteRepository'den dönmelidir")
-        void shouldDelegateGetReviewedRouteIds() {
-            // Given
-            when(routeRepository.findReviewedRouteIds(USER_ID)).thenReturn(List.of("R1", "R2"));
-
+        @DisplayName("replaceAffectedRoutes: Boş liste de RouteRepository'ye iletilmelidir (mevcut kayıtlar temizlenir)")
+        void shouldDelegateEmptyListToClearAffectedRoutes() {
             // When
-            List<String> result = routeService.getReviewedRouteIds(USER_ID);
+            routeService.replaceAffectedRoutes(USER_ID, List.of());
 
             // Then
-            assertThat(result).containsExactly("R1", "R2");
-            verify(routeRepository).findReviewedRouteIds(USER_ID);
+            verify(routeRepository).replaceAffectedRoutes(USER_ID, List.of());
+        }
+
+        @Test
+        @DisplayName("getAffectedRoutes: Etkilenen hatları ve etkileyen durakları RouteRepository'den dönmelidir")
+        void shouldDelegateGetAffectedRoutes() {
+            // Given
+            List<AffectedRoute> affectedRoutes = List.of(
+                    new AffectedRoute("R1", List.of("S1", "S2")),
+                    new AffectedRoute("R2", List.of("S3"))
+            );
+            when(routeRepository.findAffectedRoutes(USER_ID)).thenReturn(affectedRoutes);
+
+            // When
+            List<AffectedRoute> result = routeService.getAffectedRoutes(USER_ID);
+
+            // Then
+            assertThat(result).isEqualTo(affectedRoutes);
+            verify(routeRepository).findAffectedRoutes(USER_ID);
         }
     }
 }

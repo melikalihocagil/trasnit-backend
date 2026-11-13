@@ -146,6 +146,40 @@ class StopControllerTest {
             verify(stopService, never()).saveDraftStop(any(), any());
             verify(stopService).findRouteIdsByStopId(USER_ID, "S1");
         }
+
+        @Test
+        @DisplayName("Taslağı olmayan hatta durak taşındığında published noktalar yeni konumla hesaplanmalı ve hat ID'si dönmelidir")
+        void shouldUsePublishedPointsWithMovedStopWhenNoDraftExists() throws Exception {
+            // Given
+            Stop pubStop = new Stop("S1", "Orijinal Durak", 39.90, 41.25, 0);
+            Stop stop2 = new Stop("S2", "İkinci Durak", 39.96, 41.26, 0);
+            Stop movedStop = new Stop("S1", "Taşınan Durak", 39.95, 41.30, 0);
+
+            when(stopService.findRouteIdsByStopId(USER_ID, "S1")).thenReturn(List.of("R1"));
+
+            RoutePoints r1Pub = new RoutePoints(List.of(pubStop, stop2), List.of());
+            when(routeService.getPublishedPoints("R1")).thenReturn(r1Pub);
+            when(routeService.getDraftPoints("R1", USER_ID)).thenReturn(null);
+
+            List<Stop> expectedMovedStops = List.of(movedStop, stop2);
+            RouteNavigation navPub = new RouteNavigation(1000.0, 100.0, List.of());
+            RouteNavigation navMoved = new RouteNavigation(1300.0, 140.0, List.of());
+
+            when(routingService.calculateNavigation(r1Pub.stops(), r1Pub.vias())).thenReturn(navPub);
+            when(routingService.calculateNavigation(expectedMovedStops, r1Pub.vias())).thenReturn(navMoved);
+            when(routingService.hasGeometryChanged(navPub, navMoved)).thenReturn(true);
+
+            // When & Then
+            mockMvc.perform(post("/api/stops/move")
+                            .header("X-User-Id", USER_ID)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content(objectMapper.writeValueAsString(movedStop)))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.length()").value(1))
+                    .andExpect(jsonPath("$[0]").value("R1"));
+
+            verify(routingService).calculateNavigation(expectedMovedStops, r1Pub.vias());
+        }
     }
 
     @Nested

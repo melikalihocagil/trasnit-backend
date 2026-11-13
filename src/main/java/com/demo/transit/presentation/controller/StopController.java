@@ -61,22 +61,29 @@ public class StopController {
                 .filter(routeId -> {
                     RoutePoints publishedPoints = routeService.getPublishedPoints(routeId);
                     RoutePoints draftPoints = routeService.getDraftPoints(routeId, userId);
-                    if (draftPoints == null) {
-                        return false;
-                    }
+                    // Taslak yoksa published noktalar taban alınır; her iki durumda da taşınan durağın yeni konumu uygulanır
+                    RoutePoints basePoints = draftPoints != null ? draftPoints : publishedPoints;
+                    RoutePoints movedPoints = withMovedStop(basePoints, stop);
 
                     RouteNavigation publishedNav = routingService.calculateNavigation(
                             publishedPoints.stops(),
                             publishedPoints.vias()
                     );
-                    RouteNavigation draftNav = routingService.calculateNavigation(
-                            draftPoints.stops(),
-                            draftPoints.vias()
+                    RouteNavigation movedNav = routingService.calculateNavigation(
+                            movedPoints.stops(),
+                            movedPoints.vias()
                     );
 
-                    return routingService.hasGeometryChanged(publishedNav, draftNav);
+                    return routingService.hasGeometryChanged(publishedNav, movedNav);
                 })
                 .toList();
+    }
+
+    private static RoutePoints withMovedStop(RoutePoints points, Stop movedStop) {
+        List<Stop> stops = points.stops().stream()
+                .map(s -> s.stopId().equals(movedStop.stopId()) ? movedStop : s)
+                .toList();
+        return new RoutePoints(stops, points.vias());
     }
 
     @PostMapping("/save")

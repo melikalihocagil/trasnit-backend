@@ -5,13 +5,13 @@ import com.demo.transit.application.RoutingService;
 import com.demo.transit.application.model.Coordinate;
 import com.demo.transit.application.model.Leg;
 import com.demo.transit.application.model.RouteDraftItem;
+import com.demo.transit.application.model.AffectedRoute;
 import com.demo.transit.application.model.RouteNavigation;
 import com.demo.transit.application.model.RoutePoints;
 import com.demo.transit.application.model.Stop;
 import com.demo.transit.application.model.Via;
 import com.demo.transit.presentation.dto.RouteDraftRequest;
 import com.demo.transit.presentation.dto.RouteResponse;
-import com.demo.transit.presentation.dto.RouteReviewItem;
 import com.demo.transit.presentation.mapper.TransitDtoMapperImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
@@ -213,42 +213,63 @@ class RouteControllerTest {
     }
 
     @Nested
-    @DisplayName("Hat İnceleme (Reviews) Sözleşme Testleri")
-    class RouteReviewTests {
+    @DisplayName("Durak Değişiminden Etkilenen Hat Sözleşme Testleri")
+    class AffectedRouteTests {
 
         @Test
-        @DisplayName("PUT /api/routes/reviews: İnceleme kayıt isteği 204 No Content dönmelidir")
-        void shouldUpdateRouteReviewsAndReturn204() throws Exception {
+        @DisplayName("PUT /api/routes/affected: Etkilenen hat listesi kaydı 204 No Content dönmelidir")
+        void shouldReplaceAffectedRoutesAndReturn204() throws Exception {
             // Given
-            RouteReviewItem review = new RouteReviewItem("R1", true);
+            List<AffectedRoute> affectedRoutes = List.of(
+                    new AffectedRoute("R1", List.of("S1", "S2"))
+            );
 
             // When & Then
-            mockMvc.perform(put("/api/routes/reviews")
+            mockMvc.perform(put("/api/routes/affected")
                             .header("X-User-Id", USER_ID)
                             .contentType(MediaType.APPLICATION_JSON)
-                            .content(objectMapper.writeValueAsString(List.of(review))))
+                            .content(objectMapper.writeValueAsString(affectedRoutes)))
                     .andExpect(status().isNoContent());
 
-            verify(routeService).saveRouteReviews(USER_ID, List.of(review));
+            verify(routeService).replaceAffectedRoutes(USER_ID, affectedRoutes);
         }
 
         @Test
-        @DisplayName("GET /api/routes/reviews: İncelenen hat ID'leri 200 OK ve JSON dizisi olarak dönmelidir")
-        void shouldGetReviewedRouteIdsAndReturn200() throws Exception {
+        @DisplayName("PUT /api/routes/affected: Boş liste geldiğinde de servis çağrılmalı ve 204 No Content dönmelidir")
+        void shouldReplaceWithEmptyListAndReturn204() throws Exception {
+            // When & Then
+            mockMvc.perform(put("/api/routes/affected")
+                            .header("X-User-Id", USER_ID)
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("[]"))
+                    .andExpect(status().isNoContent());
+
+            verify(routeService).replaceAffectedRoutes(USER_ID, List.of());
+        }
+
+        @Test
+        @DisplayName("GET /api/routes/affected: Etkilenen hatlar, routeId ve etkileyen stopIds alanlarıyla 200 OK dönmelidir")
+        void shouldGetAffectedRoutesAndReturn200() throws Exception {
             // Given
-            when(routeService.getReviewedRouteIds(USER_ID)).thenReturn(List.of("R1", "R2"));
+            when(routeService.getAffectedRoutes(USER_ID)).thenReturn(List.of(
+                    new AffectedRoute("R1", List.of("S1", "S2")),
+                    new AffectedRoute("R2", List.of("S3"))
+            ));
 
             // When & Then
-            mockMvc.perform(get("/api/routes/reviews")
+            mockMvc.perform(get("/api/routes/affected")
                             .header("X-User-Id", USER_ID))
                     .andExpect(status().isOk())
                     .andExpect(content().contentType(MediaType.APPLICATION_JSON))
                     .andExpect(jsonPath("$").isArray())
                     .andExpect(jsonPath("$.length()").value(2))
-                    .andExpect(jsonPath("$[0]").value("R1"))
-                    .andExpect(jsonPath("$[1]").value("R2"));
+                    .andExpect(jsonPath("$[0].routeId").value("R1"))
+                    .andExpect(jsonPath("$[0].stopIds[0]").value("S1"))
+                    .andExpect(jsonPath("$[0].stopIds[1]").value("S2"))
+                    .andExpect(jsonPath("$[1].routeId").value("R2"))
+                    .andExpect(jsonPath("$[1].stopIds[0]").value("S3"));
 
-            verify(routeService).getReviewedRouteIds(USER_ID);
+            verify(routeService).getAffectedRoutes(USER_ID);
         }
     }
 }

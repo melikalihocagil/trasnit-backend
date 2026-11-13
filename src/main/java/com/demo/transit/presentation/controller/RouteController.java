@@ -5,11 +5,11 @@ import com.demo.transit.application.RoutingService;
 import com.demo.transit.application.model.RouteDraftItem;
 import com.demo.transit.application.model.RouteNavigation;
 import com.demo.transit.application.model.RoutePoints;
+import com.demo.transit.application.model.AffectedRoute;
 import com.demo.transit.presentation.dto.RouteDetailResponse;
 import com.demo.transit.presentation.dto.RouteDataResponse;
 import com.demo.transit.presentation.dto.RouteDraftRequest;
 import com.demo.transit.presentation.dto.RouteResponse;
-import com.demo.transit.presentation.dto.RouteReviewItem;
 import com.demo.transit.presentation.mapper.TransitDtoMapper;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -99,19 +99,19 @@ public class RouteController {
         routeService.deleteDraftPoints(routeId, userId);
     }
 
-    @PutMapping("/reviews")
+    @PutMapping("/affected")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void updateRouteReviews(
-            @RequestBody List<RouteReviewItem> reviews,
+    public void replaceAffectedRoutes(
+            @RequestBody List<AffectedRoute> affectedRoutes,
             @RequestHeader(value = "X-User-Id", defaultValue = "operator-1") String userId
     ) {
-        routeService.saveRouteReviews(userId, reviews);
+        routeService.replaceAffectedRoutes(userId, affectedRoutes);
     }
 
-    @GetMapping("/reviews")
-    public List<String> getReviewedRouteIds(
+    @GetMapping("/affected")
+    public List<AffectedRoute> getAffectedRoutes(
             @RequestHeader(value = "X-User-Id", defaultValue = "operator-1") String userId
     ) {
-        return routeService.getReviewedRouteIds(userId);
+        return routeService.getAffectedRoutes(userId);
     }
 }

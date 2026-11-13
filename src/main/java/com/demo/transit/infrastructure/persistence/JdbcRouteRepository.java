@@ -1,16 +1,19 @@
 package com.demo.transit.infrastructure.persistence;
 
+import com.demo.transit.application.model.AffectedRoute;
 import com.demo.transit.application.model.Route;
 import com.demo.transit.application.port.RouteRepository;
-import com.demo.transit.presentation.dto.RouteReviewItem;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.stereotype.Repository;
 
+import java.sql.Array;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 @Repository
@@ -77,33 +80,55 @@ public class JdbcRouteRepository implements RouteRepository {
     }
 
     @Override
-    public void saveRouteReviews(String userId, List<RouteReviewItem> reviews) {
-        if (reviews == null || reviews.isEmpty()) {
+    public void replaceAffectedRoutes(String userId, List<AffectedRoute> affectedRoutes) {
+        // Kullanıcının mevcut listesi her durumda silinir; boş istek tüm kayıtları temizler
+        jdbcClient.sql("DELETE FROM draft.affected_routes WHERE user_id = :userId")
+                .param(PARAM_USER_ID, userId)
+                .update();
+
+        if (affectedRoutes == null || affectedRoutes.isEmpty()) {
+            return;
+        }
+        // Aynı hat istekte birden fazla geldiyse son gelen geçerli olur
+        Map<String, AffectedRoute> byRouteId = new LinkedHashMap<>();
+        for (AffectedRoute route : affectedRoutes) {
+            if (route != null && route.routeId() != null) {
+                byRouteId.put(route.routeId(), route);
+            }
+        }
+        List<AffectedRoute> rows = List.copyOf(byRouteId.values());
+        if (rows.isEmpty()) {
             return;
         }
         String sql = """
-                INSERT INTO draft.route_reviews (user_id, route_id, is_reviewed, reviewed_at)
+                INSERT INTO draft.affected_routes (user_id, route_id, stop_ids, updated_at)
                 VALUES (?, ?, ?, NOW())
-                ON CONFLICT (user_id, route_id)
-                DO UPDATE SET is_reviewed = EXCLUDED.is_reviewed, reviewed_at = NOW()
                 """;
-        List<Object[]> batchArgs = new ArrayList<>();
-        for (RouteReviewItem item : reviews) {
-            batchArgs.add(new Object[]{userId, item.routeId(), item.reviewed()});
-        }
-        jdbcTemplate.batchUpdate(sql, batchArgs);
+        jdbcTemplate.batchUpdate(sql, rows, rows.size(), (ps, route) -> {
+            ps.setString(1, userId);
+            ps.setString(2, route.routeId());
+            ps.setArray(3, ps.getConnection().createArrayOf("text", route.stopIds().toArray()));
+        });
     }
 
     @Override
-    public List<String> findReviewedRouteIds(String userId) {
+    public List<AffectedRoute> findAffectedRoutes(String userId) {
         return jdbcClient.sql("""
-                SELECT route_id
-                FROM draft.route_reviews
-                WHERE user_id = :userId AND is_reviewed = true
+                SELECT route_id, stop_ids
+                FROM draft.affected_routes
+                WHERE user_id = :userId
                 ORDER BY route_id
                 """)
                 .param(PARAM_USER_ID, userId)
-                .query(String.class)
+                .query((rs, rowNum) -> new AffectedRoute(rs.getString("route_id"), toStringList(rs.getArray("stop_ids"))))
                 .list();
+    }
+
+    private static List<String> toStringList(Array sqlArray) throws SQLException {
+        if (sqlArray == null) {
+            return List.of();
+        }
+        Object[] values = (Object[]) sqlArray.getArray();
+        return Arrays.stream(values).map(String::valueOf).toList();
     }
 }

@@ -1,6 +1,7 @@
 package com.demo.transit.application;
 
 import com.demo.transit.application.model.Route;
+import com.demo.transit.application.model.AffectedRoute;
 import com.demo.transit.application.model.RouteDraftItem;
 import com.demo.transit.application.model.RoutePoints;
 import com.demo.transit.application.model.Stop;
@@ -11,7 +12,6 @@ import com.demo.transit.application.port.StopTimeRepository;
 import com.demo.transit.application.port.TripRepository;
 import com.demo.transit.application.port.ViaRepository;
 import com.demo.transit.presentation.dto.RouteResponse;
-import com.demo.transit.presentation.dto.RouteReviewItem;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -132,11 +132,11 @@ public class RouteService {
     }
 
     @Transactional
-    public void saveRouteReviews(String userId, List<RouteReviewItem> reviews) {
-        routeRepository.saveRouteReviews(userId, reviews);
+    public void replaceAffectedRoutes(String userId, List<AffectedRoute> affectedRoutes) {
+        routeRepository.replaceAffectedRoutes(userId, affectedRoutes);
     }
 
-    public List<String> getReviewedRouteIds(String userId) {
-        return routeRepository.findReviewedRouteIds(userId);
+    public List<AffectedRoute> getAffectedRoutes(String userId) {
+        return routeRepository.findAffectedRoutes(userId);
     }
 }
